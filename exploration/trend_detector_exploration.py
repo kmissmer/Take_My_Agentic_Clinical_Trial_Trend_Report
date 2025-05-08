@@ -103,9 +103,6 @@ functions = [
     }
 ]
 
-print("Key:", os.getenv("azure_openai_key"))
-print("Endpoint:", os.getenv("azure_openai_endpoint"))
-
 # 4. Use OpenAI to summarize
 client = get_azure_openai_client()
 
