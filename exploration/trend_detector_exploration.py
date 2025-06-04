@@ -95,7 +95,7 @@ functions = [
                     "items": {
                         "type": "string"
                     },
-                    "description": "Bullet points highlighting specific condition-level trends."
+                    "description": "Bullet points highlighting specific condition-level trends. Use numbers and percentages to quantify changes."
                 }
             },
             "required": ["summary", "highlights"]
