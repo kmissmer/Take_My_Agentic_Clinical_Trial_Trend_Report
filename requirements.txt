@@ -4,3 +4,4 @@ streamlit
 psycopg[binary]
 openai
 sqlalchemy
+torch
