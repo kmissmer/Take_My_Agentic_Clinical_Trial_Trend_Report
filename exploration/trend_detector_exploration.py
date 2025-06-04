@@ -70,7 +70,7 @@ ORDER BY condition, month;
 df = get_table(query)
 
 
-import torch
+#import torch
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 

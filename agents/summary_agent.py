@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 import numpy as np
-import torch
+#import torch
 from datetime import datetime
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv

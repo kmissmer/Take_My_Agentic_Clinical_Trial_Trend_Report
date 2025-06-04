@@ -5,3 +5,4 @@ psycopg[binary]
 openai
 sqlalchemy
 torch
+scikit-learn
