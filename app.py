@@ -5,6 +5,7 @@ from agents.summary_agent import SummaryAgent
 def main():
     # Streamlit app title
     st.title('Clinical Trial Trend Detector')
+    st.subheader('Detect Trends in NEW Clinical Trials per Month by Condition')
 
     # User input for first and second month/year
     start_year = st.number_input('Enter the start year:', min_value=2000, max_value=datetime.now().year, value=2020)
@@ -18,8 +19,9 @@ def main():
         # Create an instance of the agent with user inputs
         agent = SummaryAgent(start_year, start_month, end_year, end_month)
 
-        # Execute the full trend detection process
-        summary, trend_increases, trend_decreases = agent.execute()
+        # Show a spinner while processing
+        with st.spinner('Detecting trends... (may take a few seconds)'):
+            summary, trend_increases, trend_decreases = agent.execute()
 
         # Display the result
         st.subheader('Summary')

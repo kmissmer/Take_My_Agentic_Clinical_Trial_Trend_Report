@@ -50,27 +50,121 @@ end_label = end_dt.strftime("%B %Y")  # e.g. April 2025
 query = f"""
 SELECT
   c.name AS condition,
-  s.start_month_year AS month,
+  SUBSTRING(s.start_month_year FROM 1 FOR 7) AS month,
   COUNT(DISTINCT s.nct_id) AS trial_count
 FROM studies s
 JOIN conditions c ON s.nct_id = c.nct_id
-WHERE s.start_month_year IN ('{start_month_year}', '{end_month_year}')
-GROUP BY c.name, s.start_month_year
+WHERE SUBSTRING(s.start_month_year FROM 1 FOR 7) IN (
+  '{start_dt.strftime("%Y-%m")}', '{end_dt.strftime("%Y-%m")}'
+)
+GROUP BY c.name, SUBSTRING(s.start_month_year FROM 1 FOR 7)
 ORDER BY condition, month;
 """
 
 
+
+
+
+
+
 df = get_table(query)
 
+
+import torch
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
+# Load embeddings
+embeddings_path = os.path.join("data", "condition_embeddings.pkl")
+with open(embeddings_path, "rb") as f:
+    embeddings_data = pd.read_pickle(f)
+
+condition_embeddings = embeddings_data["condition_embeddings"]
+conditions_df = embeddings_data["conditions_df"]
+
+# 🔧 Normalize both sets of condition names
+df['condition'] = df['condition'].str.strip().str.lower()
+conditions_df['condition'] = conditions_df['condition'].str.strip().str.lower()
+
+# 🔁 Group similar conditions within each month
+grouped = []
+
+for month, group in df.groupby("month"):
+    conditions = group['condition'].unique().tolist()
+    mask = conditions_df['condition'].isin(conditions)
+    group_conditions_df = conditions_df[mask].reset_index(drop=True)
+
+    if group_conditions_df.empty:
+        print(f"⚠️ Skipping month {month}: No embeddings matched for conditions:")
+        print("Missing:", conditions)
+        grouped.append(group)
+        continue
+
+    group_embeddings = condition_embeddings[mask.values]
+
+    sim_matrix = cosine_similarity(group_embeddings)
+    threshold = 0.85
+    map_in_month = {}
+    used = set()
+
+    for i, cond in enumerate(group_conditions_df['condition']):
+        if cond in used:
+            continue
+        map_in_month[cond] = cond
+        for j in range(i + 1, len(group_conditions_df)):
+            other = group_conditions_df['condition'][j]
+            if sim_matrix[i, j] > threshold:
+                map_in_month[other] = cond
+                used.add(other)
+
+    group['condition'] = group['condition'].map(map_in_month)
+    grouped.append(group)
+
+# ✅ Combine groups and proceed with aggregation
+df = pd.concat(grouped).reset_index(drop=True)
+import numpy as np
+
+# Group in case semantic mapping was done
+df = df.groupby(['condition', 'month'], as_index=False)['trial_count'].sum()
+
+# Pivot to wide format: rows = condition, columns = months
 pivot = df.pivot(index="condition", columns="month", values="trial_count").fillna(0)
+
+# Ensure only 2 months are present
+if len(pivot.columns) != 2:
+    raise ValueError(f"Expected 2 months, but found: {pivot.columns.tolist()}")
+
+# Rename columns
 pivot.columns = ["First_User_Month", "Second_User_Month"]
+
+# Add delta and safe percent change
 pivot["delta"] = pivot["Second_User_Month"] - pivot["First_User_Month"]
-pivot["pct_change"] = 100 * pivot["delta"] / (pivot["First_User_Month"] + 1)
+pivot["pct_change"] = np.where(
+    pivot["First_User_Month"] == 0,
+    np.nan,
+    100 * pivot["delta"] / pivot["First_User_Month"]
+)
+pivot["is_new_condition"] = pivot["First_User_Month"] == 0
 
-top = pivot.sort_values("delta", ascending=False).head(100).reset_index()
+# Reset index for flat DataFrame
+pivot = pivot.reset_index()
 
-# 2. Create the payload for GPT
-trend_payload = top.to_dict(orient="records")
+# Get top 100 increases and decreases (same logic as SummaryAgent)
+increases = pivot[pivot["delta"] > 0].sort_values(
+    by=["delta", "pct_change"], ascending=[False, False]
+).head(100)
+
+decreases = pivot[pivot["delta"] < 0].sort_values(
+    by=["delta"], ascending=True
+).head(100)
+
+
+# Create payload from the trend logic
+trend_payload = (
+    increases.head(5).to_dict(orient="records") +
+    decreases.head(5).to_dict(orient="records")
+)
+
 
 # 3. Define function calling schema
 functions = [
@@ -111,10 +205,12 @@ user_message = {
     "role": "user",
     "content": (
         f"Here are clinical trial activity changes by condition between {start_label} and {end_label}. "
-        f"Please summarize the trend data below:\n\n"
+        f"Each item contains the condition name, the number of trials in the first and second month, and the delta and percent change. "
+        f"Please summarize this trend data into highlights. Say the first number and the last number so the user knows specifics..\n\n"
         f"{json.dumps(trend_payload, indent=2)}"
     )
 }
+
 
 
 response = client.chat.completions.create(
