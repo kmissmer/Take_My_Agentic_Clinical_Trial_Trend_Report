@@ -158,4 +158,4 @@ config.ini
 secrets.json
 
 
-data/
+data/condition_embeddings.pkl
