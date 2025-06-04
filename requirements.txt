@@ -2,3 +2,4 @@ pandas
 python-dotenv
 streamlit
 psycopg[binary]
+openai
