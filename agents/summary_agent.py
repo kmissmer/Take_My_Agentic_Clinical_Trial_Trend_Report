@@ -4,12 +4,6 @@ import json
 import pandas as pd
 from dotenv import load_dotenv
 from datetime import datetime
-
-load_dotenv()
-base_dir = os.getenv("base_dir")
-os.chdir(base_dir)
-sys.path.append(base_dir)
-
 from utils.sql_util import get_table
 from utils.openai_util import get_azure_openai_client
 
