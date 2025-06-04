@@ -21,6 +21,8 @@ from dotenv import load_dotenv
 from utils.sql_util import get_table
 from utils.openai_util import get_azure_openai_client
 from datetime import datetime, timedelta
+from huggingface_hub import hf_hub_download
+
 
 
 azure_deployment = "gpt-4o-mini"
@@ -74,10 +76,16 @@ df = get_table(query)
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
-# Load embeddings
-embeddings_path = os.path.join("data", "condition_embeddings.pkl")
-with open(embeddings_path, "rb") as f:
+
+# Download embeddings from Hugging Face Hub
+hf_path = hf_hub_download(
+    repo_id="skilledpenguin/ClinicalTrialReport",
+    filename="condition_embeddings.pkl",
+    repo_type="dataset"
+)
+with open(hf_path, "rb") as f:
     embeddings_data = pd.read_pickle(f)
+
 
 condition_embeddings = embeddings_data["condition_embeddings"]
 conditions_df = embeddings_data["conditions_df"]

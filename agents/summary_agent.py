@@ -44,8 +44,15 @@ class SummaryAgent:
         df = get_table(query)
 
         # Load precomputed embeddings
-        with open(os.path.join("data", "condition_embeddings.pkl"), "rb") as f:
-            embeddings_data = pd.read_pickle(f)
+        import requests
+        import io
+
+        hf_url = "https://huggingface.co/datasets/skilledpenguin/ClinicalTrialReport/resolve/main/condition_embeddings.pkl"
+        response = requests.get(hf_url)
+        if response.status_code != 200:
+            raise RuntimeError(f"Failed to download embeddings from Hugging Face: {response.status_code}")
+
+        embeddings_data = pd.read_pickle(io.BytesIO(response.content))
 
         condition_embeddings = embeddings_data["condition_embeddings"]
         conditions_df = embeddings_data["conditions_df"]
