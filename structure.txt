@@ -1,0 +1,11 @@
+clinical_trial_trend_reporter/
+├── app.py                           # (optional Streamlit front end)
+├── agent_coordinator.py            # Main router to call other agents
+├── agents/
+│   ├── trend_detector.py           # Runs SQL & computes changes
+│   ├── insight_generator.py        # Interprets changes & flags significance
+│   └── report_writer.py            # Turns trends into readable markdown
+├── utils/
+│   └── sql_util.py                 # DB connection & query runner (reuse from old)
+├── reports/
+│   └── latest_report.md            # Saved markdown summaries
