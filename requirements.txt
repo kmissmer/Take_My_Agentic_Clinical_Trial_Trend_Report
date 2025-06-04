@@ -1,4 +1,4 @@
 pandas
 python-dotenv
 streamlit
-psycopg
+psycopg[binary]
