@@ -10,21 +10,20 @@ load_dotenv()
 #File specific imports
 import pandas as pd
 import psycopg
-
-
-
+from sqlalchemy import create_engine
 
 def connect_to_aact():
-    """Connect to AACT database using environment variables"""
+    """Create SQLAlchemy engine for AACT database using environment variables"""
+    username = os.getenv('aact_username')
+    password = os.getenv('aact_password')
+    host = "aact-db.ctti-clinicaltrials.org"
+    port = "5432"
+    dbname = "aact"
     
-    conn = psycopg.connect(
-        dbname="aact",
-        user=os.getenv('aact_username'),
-        password=os.getenv('aact_password'),
-        host="aact-db.ctti-clinicaltrials.org",
-        port="5432"
-    )
-    return conn
+    db_url = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{dbname}"
+    engine = create_engine(db_url)
+    return engine
+
 
 
 
@@ -37,8 +36,5 @@ def get_table(query):
     
     # Execute the SQL query and fetch the results into a DataFrame
     df = pd.read_sql(query, conn)
-    
-    # Close the connection
-    conn.close()
-    
+        
     return df

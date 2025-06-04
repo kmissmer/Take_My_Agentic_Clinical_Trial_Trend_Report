@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from utils.sql_util import get_table
 from utils.openai_util import get_azure_openai_client
+import numpy as np
 
 
 class SummaryAgent:
@@ -32,28 +33,49 @@ class SummaryAgent:
     def fetch_trend_data(self):
         query = f"""
         SELECT
-          c.name AS condition,
-          s.start_month_year AS month,
-          COUNT(DISTINCT s.nct_id) AS trial_count
+        c.name AS condition,
+        s.start_month_year AS month,
+        COUNT(DISTINCT s.nct_id) AS trial_count
         FROM studies s
         JOIN conditions c ON s.nct_id = c.nct_id
         WHERE s.start_month_year IN ('{self.start_month_year}', '{self.end_month_year}')
         GROUP BY c.name, s.start_month_year
         ORDER BY condition, month;
         """
-        # Fetch the data from the database
+        # Fetch the data
         df = get_table(query)
 
-        # Prepare pivot table and calculate deltas and percentages
+        # Pivot to wide format
         pivot = df.pivot(index="condition", columns="month", values="trial_count").fillna(0)
         pivot.columns = ["First_User_Month", "Second_User_Month"]
+
+        # Add delta
         pivot["delta"] = pivot["Second_User_Month"] - pivot["First_User_Month"]
-        pivot["pct_change"] = 100 * pivot["delta"] / (pivot["First_User_Month"] + 1)
 
-        # Get the top 100 conditions by delta
-        top = pivot.sort_values("delta", ascending=False).head(100).reset_index()
+        # Add pct_change — safe way (avoids divide by zero)
+        pivot["pct_change"] = np.where(
+            pivot["First_User_Month"] == 0,
+            np.nan,  # or float('inf') if you want to flag new conditions
+            100 * pivot["delta"] / pivot["First_User_Month"]
+        )
 
-        return top
+        # Optional: flag new conditions
+        pivot["is_new_condition"] = pivot["First_User_Month"] == 0
+
+        # Reset index so condition is a column again
+        pivot = pivot.reset_index()
+
+        # Top 100 increases and decreases
+        increases = pivot[pivot["delta"] > 0].sort_values(
+            by=["delta", "pct_change"], ascending=[False, False]
+        ).head(100)
+
+        decreases = pivot[pivot["delta"] < 0].sort_values(
+            by=["delta"], ascending=True
+        ).head(100)
+
+        return increases, decreases
+
 
     def generate_increases(self, top):
         increases = []
@@ -125,7 +147,7 @@ class SummaryAgent:
             messages=[system_message, user_message],
             functions=functions,
             function_call={"name": "explain_condition_trends_increase_decrease"},
-            temperature=0.7,
+            temperature=0.1,
             max_tokens=2048
         )
 
@@ -142,11 +164,11 @@ class SummaryAgent:
 
     def execute(self):
         # Fetch data and calculate changes
-        top = self.fetch_trend_data()
+        increases, decreases = self.fetch_trend_data()
 
         # Generate highlights with numbers and percentages
-        increases = self.generate_increases(top)
-        decreases = self.generate_decreases(top)
+        increases = self.generate_increases(increases)
+        decreases = self.generate_decreases(decreases)
 
         # Summarize the trends using OpenAI
         summary, trend_increases, trend_decreases = self.summarize_trends(increases, decreases)
