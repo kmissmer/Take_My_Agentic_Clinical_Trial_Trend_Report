@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime
-from agents import summary_agent 
+from agents.summary_agent import SummaryAgent
 
 def main():
     # Streamlit app title
@@ -16,7 +16,7 @@ def main():
     # When the user clicks 'Submit'
     if st.button('Submit'):
         # Create an instance of the agent with user inputs
-        agent = summary_agent.SummaryAgent(start_year, start_month, end_year, end_month)
+        agent = SummaryAgent(start_year, start_month, end_year, end_month)
 
         # Execute the full trend detection process
         summary, trend_increases, trend_decreases = agent.execute()
